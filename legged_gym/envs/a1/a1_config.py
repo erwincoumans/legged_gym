@@ -89,7 +89,7 @@ class A1FlatCfgPPO( LeggedRobotCfgPPO ):
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'a1_flat'
-        max_iterations = 500
+        max_iterations = 400
 
 
  
@@ -133,6 +133,7 @@ class A1FlatCfg( LeggedRobotCfg ):
 
     class asset( LeggedRobotCfg.asset ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/a1/urdf/a1.urdf'
+        print ("file=", file)
         name = "a1"
         foot_name = "foot"
         penalize_contacts_on = ["thigh", "calf"]
