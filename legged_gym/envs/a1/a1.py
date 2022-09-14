@@ -46,6 +46,15 @@ import torch
 from typing import Tuple, Dict
 from legged_gym.envs import LeggedRobot
 
+use_cuda_interop = True
+use_matplot_lib = False
+
+if use_matplot_lib:
+  import matplotlib.pyplot as plt
+  plt.ion()
+  img = np.random.rand(2000, 2000)
+  ax = plt.gca()
+  
 ############################
 #use pip install pytinydiffsim to get pytinyopengl3
 
@@ -81,11 +90,13 @@ class A1(LeggedRobot):
           self.max_x = math.ceil(math.sqrt(self.num_envs))
           width = self.max_x * self._camera_width
           height = self.max_x * self._camera_height
+          self.width = width
+          self.height = height
           print("opengl width=", width)
           print("opengl height=", height)
   
   
-          self.viz = g.OpenGLUrdfVisualizer(width=width, height=height, window_type=0)#, window_type=0, render_device=-1)
+          self.viz = g.OpenGLUrdfVisualizer(width=width, height=height, window_type=2)#, window_type=0, render_device=-1)
           self.viz.opengl_app.set_background_color(0.3,0.3,0.3)
           self.viz.opengl_app.swap_buffer()
           self.viz.opengl_app.swap_buffer()
@@ -108,7 +119,7 @@ class A1(LeggedRobot):
         if self.tiled_egl:
           
           
-          self.use_matplotlib = False
+          self.use_matplotlib = use_matplot_lib
           
           self.show_data = RGB_DATA #DEPTH_DATA #RGB_DATA #SEGMENTATION_DATA
           
@@ -118,9 +129,9 @@ class A1(LeggedRobot):
             img = np.random.rand(400, 400)
             
             if self.show_data==DEPTH_DATA:
-              image = plt.imshow(img, interpolation='none', cmap='gray', vmin=0.8, vmax=1)
+              self.matplot_image = plt.imshow(img, interpolation='none', cmap='gray', vmin=0.8, vmax=1)
             else:
-              image = plt.imshow(img, interpolation='none')
+              self.matplot_image = plt.imshow(img, interpolation='none')
               
             ax = plt.gca()
           
@@ -133,6 +144,17 @@ class A1(LeggedRobot):
           self.viz.opengl_app.set_background_color(1,1,1)#0.3,0.3,0.3)
           self.viz.opengl_app.swap_buffer()
           self.viz.opengl_app.swap_buffer()
+          
+          if use_cuda_interop:
+              self.render_texid = self.viz.opengl_app.enable_render_to_texture(self.width, self.height)
+              self.viz.opengl_app.swap_buffer()
+              self.viz.opengl_app.swap_buffer()
+              self.cuda_tex = self.viz.opengl_app.cuda_register_texture_image(self.render_texid, True)
+              self.cuda_num_bytes = self.width*self.height*4*2 #4 component half-float, each half-float 2 bytes
+              print("cuda_num_bytes=", self.cuda_num_bytes)
+              self.ttensor = torch.zeros(self.width*self.height*4, dtype=torch.float16, device="cuda")
+              self.cuda_mem = self.ttensor.data_ptr()
+
           
           # enable the following line (dump_frames_to_video) to create a video, requires ffmpeg installed
           # self.viz.opengl_app.dump_frames_to_video("video.mp4")
@@ -279,6 +301,9 @@ class A1(LeggedRobot):
           tile_width = int(width/self.max_x)
           tile_height = int(height/self.max_x)
           
+          if use_cuda_interop:
+            self.viz.opengl_app.enable_render_to_texture(self.width, self.height)
+
           
           
           tile_index = 0
@@ -322,31 +347,43 @@ class A1(LeggedRobot):
           et = time.time()
           print("render dt=",et-ct)
             
-          
-
-                    
-          
-        
-          
-          
           #self.viz.render()
     
-          ct = time.time()
-          pixels = g.ReadPixelBuffer(self.viz.opengl_app)
-          et = time.time()
-          print("ReadPixelBuffer dt=",et-ct)
+          
+          
+          #ReadPixelBuffer should not read back data to CPU, but using GL to CUDA PyTorch interop
+          if use_cuda_interop:
+            ct = time.time()
+            self.viz.opengl_app.cuda_copy_texture_image(self.cuda_tex, self.cuda_mem, self.cuda_num_bytes)
+            et = time.time()
+            print("cuda_copy_texture_image dt=",et-ct)
+          else:
+            ct = time.time()
+            pixels = g.ReadPixelBuffer(self.viz.opengl_app)
+            et = time.time()
+            print("ReadPixelBuffer dt=",et-ct)
+            
+          
           #print('pixels.rgba=', pixels.rgba)
     
           if self.use_matplotlib:
-            if self.show_data == DEPTH_DATA:
-              np_depth_arr = np.flipud(np.reshape(pixels.depth, (height, width, 1)))
-              image.set_data(np_depth_arr)
-            else:
-              np_img_arr = np.reshape(pixels.rgba, (height, width, 4))
-              if self.show_data==RGB_DATA:
-                np_img_arr = np_img_arr * (1. / 255.)
+            
+            if use_cuda_interop:
+              ftensor = self.ttensor.type(torch.float32)
+              np_img_arr = ftensor.cpu().numpy()
+              np_img_arr = np.reshape(np_img_arr, (self.height, self.width, 4))
               np_img_arr = np.flipud(np_img_arr)
-              image.set_data(np_img_arr)
+              self.matplot_image.set_data(np_img_arr)
+            else:
+              if self.show_data == DEPTH_DATA:
+                np_depth_arr = np.flipud(np.reshape(pixels.depth, (height, width, 1)))
+                self.matplot_image.set_data(np_depth_arr)
+              else:
+                np_img_arr = np.reshape(pixels.rgba, (height, width, 4))
+                if self.show_data==RGB_DATA:
+                  np_img_arr = np_img_arr * (1. / 255.)
+                np_img_arr = np.flipud(np_img_arr)
+                self.matplot_image.set_data(np_img_arr)
             
             plt.pause(0.0001)
             
