@@ -115,7 +115,7 @@ class A1FlatCfg( LeggedRobotCfg ):
 
 
     class env( LeggedRobotCfg.env ):
-      num_observations = 48
+      num_observations = 48#+38400
 
     class terrain( LeggedRobotCfg.terrain ):
         mesh_type = 'plane'

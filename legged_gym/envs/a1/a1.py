@@ -47,13 +47,7 @@ from typing import Tuple, Dict
 from legged_gym.envs import LeggedRobot
 
 use_cuda_interop = True
-use_matplot_lib = False
 
-if use_matplot_lib:
-  import matplotlib.pyplot as plt
-  plt.ion()
-  img = np.random.rand(2000, 2000)
-  ax = plt.gca()
   
 ############################
 #use pip install pytinydiffsim to get pytinyopengl3
@@ -77,6 +71,8 @@ class A1(LeggedRobot):
         
         self._camera_width = 120
         self._camera_height = 80
+        
+        
         
         self.tiled_egl = True
         if self.tiled_egl:
@@ -119,13 +115,12 @@ class A1(LeggedRobot):
         if self.tiled_egl:
           
           
-          self.use_matplotlib = use_matplot_lib
-          
           self.show_data = RGB_DATA #DEPTH_DATA #RGB_DATA #SEGMENTATION_DATA
           
-          if self.use_matplotlib:
+          if self.matplotlib:
             import matplotlib.pyplot as plt
-            plt.ion()
+            self.plt = plt
+            self.plt.ion()
             img = np.random.rand(400, 400)
             
             if self.show_data==DEPTH_DATA:
@@ -192,16 +187,56 @@ class A1(LeggedRobot):
             print(i.visual_instance)
             
           #sync transforms
-          for pairs in self.all_instances:
-            print(len(pairs))
-            for pair in pairs:
-              print("pair.link=", pair.link_index, " pair.visual_instance=", pair.visual_instance)
+          #for pairs in self.all_instances:
+          #  print(len(pairs))
+          #  for pair in pairs:
+          #    print("pair.link=", pair.link_index, " pair.visual_instance=", pair.visual_instance)
           
       
           print("len(self.all_instances)=",len(self.all_instances))
           print("\nhold CTRL and right/left/middle mouse button to rotate/zoom/move camera")
           
           st = time.time()
+          
+          #######################
+          # create plane_visual_instance, a textured box plane
+
+          # create a texture
+          width = 256
+          height = 256
+          pixels = [255] * width * height * 3
+          colorR = 255
+          colorG = 255
+          colorB = 255
+          
+          for i in range(width):
+            for j in range(height):
+               a = i < width / 2
+               b = j < width / 2
+               if (a == b):
+                  pixels[(i + j * width) * 3 + 0] = 0
+                  pixels[(i + j * width) * 3 + 1] = 255
+                  pixels[(i + j * width) * 3 + 2] = 255
+               else:
+                pixels[(i + j * width) * 3 + 0] = colorR
+                pixels[(i + j * width) * 3 + 1] = colorG
+                pixels[(i + j * width) * 3 + 2] = colorB
+          
+          
+          textureIndex = self.viz.opengl_app.renderer.register_texture(pixels, width, height, False)
+          shape = self.viz.opengl_app.register_cube_shape(128, 128, 0.01, textureIndex, 4000)
+          print("shape=",shape)
+          pos = g.TinyVector3f(0.,0.,0.)
+          orn = g.TinyQuaternionf(0.,0.,0.,1.)
+          color = g.TinyVector3f(1.,1.,1.)
+          scaling = g.TinyVector3f(1.,1.,1.)
+          opacity = 1
+          rebuild = True
+          plane_visual_instance = self.viz.opengl_app.renderer.register_graphics_instance(shape, pos, orn, color, scaling, opacity, rebuild)
+          
+          
+          #######################
+          
           
           if 1:
             width = self.viz.opengl_app.renderer.get_screen_width()
@@ -218,9 +253,16 @@ class A1(LeggedRobot):
                 tile = g.TinyViewportTile()
                 pairs = self.all_instances[t]
                 
+                # each tile only renders its own 'viz_instances'
                 viz_instances = []
+                
+                # add the robot specific to this 'tile' to its 'viz_instances'
                 for pair in pairs:
                   viz_instances.append(pair.visual_instance)
+                
+                #add the single ground plane to each tile
+                viz_instances.append(plane_visual_instance)
+                
                 #print("viz_instances=",viz_instances)
                 tile.visual_instances = viz_instances#[t, 512+t, 1024+t]
                 #print("tile.visual_instances=",tile.visual_instances)
@@ -255,146 +297,167 @@ class A1(LeggedRobot):
           self.gym.fetch_results(self.sim, True)
         self.gym.step_graphics(self.sim)
         
-        #################################### 
-        print("A1.compute_observations")
-        #rbs = self._rigid_body_state.cpu().numpy()
-        #visual_world_transforms = np.array(rbs).copy()
-        #print("visual_world_transforms.shape=",visual_world_transforms.shape)
-        #print("visual_world_transforms=",repr(visual_world_transforms))
-
-        rbs = self._rigid_body_state.cpu().numpy()
-        visual_world_transforms = np.array(rbs).copy()
-        visual_world_transforms = visual_world_transforms[:,:,:7]
-        visual_world_transforms = visual_world_transforms.reshape(self.num_envs,17*7)
-        #print("visual_world_transforms .shape=", visual_world_transforms.shape)
-        #print("visual_world_transforms[0]=", repr(visual_world_transforms[0]))
+        if 1:
+        
+          #################################### 
+          #print("A1.compute_observations")
+          #rbs = self._rigid_body_state.cpu().numpy()
+          #visual_world_transforms = np.array(rbs).copy()
+          #print("visual_world_transforms.shape=",visual_world_transforms.shape)
+          #print("visual_world_transforms=",repr(visual_world_transforms))
   
+          rbs = self._rigid_body_state.cpu().numpy()
+          visual_world_transforms = np.array(rbs).copy()
+          visual_world_transforms = visual_world_transforms[:,:,:7]
+          visual_world_transforms = visual_world_transforms.reshape(self.num_envs,17*7)
+          #print("visual_world_transforms .shape=", visual_world_transforms.shape)
+          #print("visual_world_transforms[0]=", repr(visual_world_transforms[0]))
     
-
-        if self.tiled_egl:
-          import pytinyopengl3 as g
-          # Copy transforms to CPU and convert to layout that renderer expects
-          
-        
-          # if use_tiled = False, it will render all setups with spacing, similar to IsaacGym
-          use_tiled = True
-          if use_tiled:
-            sim_spacing = 0
-          else:
-            sim_spacing = 2
-          
-          ct = time.time()
-          # Synchronize the renderer world transforms for all environments
-          self.viz.sync_visual_transforms(self.all_instances, visual_world_transforms, 0, sim_spacing, apply_visual_offset=True)
-
-          et = time.time()
-          print("sync_visual_transforms dt=",et-ct)
-
-          
-          # dump_next_frame_to_png is very slow, use only for debugging
-          #name = "test_"+str(frame)+".png"
-          #self.viz.opengl_app.dump_next_frame_to_png(filename=name, render_to_texture=False, width=-1, height=-1)#19200, height=10800)
-                    
-          width = self.viz.opengl_app.renderer.get_screen_width()
-          height = self.viz.opengl_app.renderer.get_screen_height()
-        
-          tile_width = int(width/self.max_x)
-          tile_height = int(height/self.max_x)
-          
-          if use_cuda_interop:
-            self.viz.opengl_app.enable_render_to_texture(self.width, self.height)
-
-          
-          
-          tile_index = 0
-          x=0
-          y=0
-          
-          cam = self.viz.opengl_app.renderer.get_active_camera()  
-          
-          ct = time.time()
-          
-          if use_tiled:
-              for tile_index in range (self.num_envs):
-                  tile = self.tiles[tile_index]
-                  
-                  # update the camera transform (an OpenGL 4x4 matrix)
-                  #cam = g.TinyCamera()
-                  #cam.set_camera_up_axis(2)
-                  #cam.set_camera_distance(1.5)
-                  #cam.set_camera_pitch(-30)
-                  #cam.set_camera_yaw(0)
-                  
-                  cam.set_camera_target_position(visual_world_transforms[tile_index][0],visual_world_transforms[tile_index][1],visual_world_transforms[tile_index][2])
-                  tile.view_matrix = cam.get_camera_view_matrix()
-                  tile.viewport_dims=[x*tile_width,y*tile_height,tile_width, tile_height]
-                  x+=1
-                  if x>=self.max_x:
-                    x=0
-                    y+=1
-                    
- 
-          et = time.time()
-          print("tile update dt=",et-ct)
- 
-          ct = time.time()
-                    
-          if use_tiled:
-              self.viz.render_tiled(self.tiles, do_swap_buffer = False, render_segmentation_mask=(self.show_data==SEGMENTATION_DATA))
-          else:
-            self.viz.render(do_swap_buffer=False, render_segmentation_mask=(self.show_data==SEGMENTATION_DATA))  
-
-          et = time.time()
-          print("render dt=",et-ct)
-            
-          #self.viz.render()
-    
-          
-          
-          #ReadPixelBuffer should not read back data to CPU, but using GL to CUDA PyTorch interop
-          if use_cuda_interop:
-            ct = time.time()
-            self.viz.opengl_app.cuda_copy_texture_image(self.cuda_tex, self.cuda_mem, self.cuda_num_bytes)
-            et = time.time()
-            print("cuda_copy_texture_image dt=",et-ct)
-          else:
-            ct = time.time()
-            pixels = g.ReadPixelBuffer(self.viz.opengl_app)
-            et = time.time()
-            print("ReadPixelBuffer dt=",et-ct)
+      
+  
+          if self.tiled_egl:
+            import pytinyopengl3 as g
+            # Copy transforms to CPU and convert to layout that renderer expects
             
           
-          #print('pixels.rgba=', pixels.rgba)
-    
-          if self.use_matplotlib:
+            # if use_tiled = False, it will render all setups with spacing, similar to IsaacGym
+            use_tiled = True
+            if use_tiled:
+              sim_spacing = 0
+            else:
+              sim_spacing = 2
+            
+            ct = time.time()
+            # Synchronize the renderer world transforms for all environments
+            self.viz.sync_visual_transforms(self.all_instances, visual_world_transforms, 0, sim_spacing, apply_visual_offset=True)
+  
+            et = time.time()
+            #print("sync_visual_transforms dt=",et-ct)
+  
+            
+            # dump_next_frame_to_png is very slow, use only for debugging
+            #name = "test_"+str(frame)+".png"
+            #self.viz.opengl_app.dump_next_frame_to_png(filename=name, render_to_texture=False, width=-1, height=-1)#19200, height=10800)
+                      
+            width = self.viz.opengl_app.renderer.get_screen_width()
+            height = self.viz.opengl_app.renderer.get_screen_height()
+          
+            tile_width = int(width/self.max_x)
+            tile_height = int(height/self.max_x)
             
             if use_cuda_interop:
-              ftensor = self.ttensor.type(torch.float32)
-              np_img_arr = ftensor.cpu().numpy()
-              np_img_arr = np.reshape(np_img_arr, (self.height, self.width, 4))
-              np_img_arr = np.flipud(np_img_arr)
-              self.matplot_image.set_data(np_img_arr)
+              self.viz.opengl_app.enable_render_to_texture(self.width, self.height)
+  
+            
+            
+            tile_index = 0
+            x=0
+            y=0
+            
+            cam = self.viz.opengl_app.renderer.get_active_camera()  
+            
+            ct = time.time()
+            
+            if use_tiled:
+                for tile_index in range (self.num_envs):
+                    tile = self.tiles[tile_index]
+                    
+                    # update the camera transform (an OpenGL 4x4 matrix)
+                    #cam = g.TinyCamera()
+                    #cam.set_camera_up_axis(2)
+                    #cam.set_camera_distance(1.5)
+                    #cam.set_camera_pitch(-30)
+                    #cam.set_camera_yaw(0)
+                    
+                    cam.set_camera_target_position(visual_world_transforms[tile_index][0],visual_world_transforms[tile_index][1],visual_world_transforms[tile_index][2])
+                    #cam.set_camera_target_orientation(visual_world_transforms[tile_index][3],visual_world_transforms[tile_index][4],visual_world_transforms[tile_index][5],visual_world_transforms[tile_index][6])
+                    
+                    tile.view_matrix = cam.get_camera_view_matrix()
+                    tile.viewport_dims=[x*tile_width,y*tile_height,tile_width, tile_height]
+                    x+=1
+                    if x>=self.max_x:
+                      x=0
+                      y+=1
+                      
+   
+            et = time.time()
+            #print("tile update dt=",et-ct)
+   
+            ct = time.time()
+                      
+            if use_tiled:
+                self.viz.render_tiled(self.tiles, do_swap_buffer = False, render_segmentation_mask=(self.show_data==SEGMENTATION_DATA))
             else:
-              if self.show_data == DEPTH_DATA:
-                np_depth_arr = np.flipud(np.reshape(pixels.depth, (height, width, 1)))
-                self.matplot_image.set_data(np_depth_arr)
-              else:
-                np_img_arr = np.reshape(pixels.rgba, (height, width, 4))
-                if self.show_data==RGB_DATA:
-                  np_img_arr = np_img_arr * (1. / 255.)
+              self.viz.render(do_swap_buffer=False, render_segmentation_mask=(self.show_data==SEGMENTATION_DATA))  
+  
+            et = time.time()
+            #print("render dt=",et-ct)
+              
+            #self.viz.render()
+      
+            
+            
+            #ReadPixelBuffer should not read back data to CPU, but using GL to CUDA PyTorch interop
+            if use_cuda_interop:
+              ct = time.time()
+              self.viz.opengl_app.cuda_copy_texture_image(self.cuda_tex, self.cuda_mem, self.cuda_num_bytes)
+              et = time.time()
+              #print("cuda_copy_texture_image dt=",et-ct)
+            else:
+              ct = time.time()
+              pixels = g.ReadPixelBuffer(self.viz.opengl_app)
+              et = time.time()
+              #print("ReadPixelBuffer dt=",et-ct)
+              
+            
+            #print('pixels.rgba=', pixels.rgba)
+      
+            if self.matplotlib:
+              
+              if use_cuda_interop:
+                ftensor = self.ttensor.type(torch.float32)
+                np_img_arr = ftensor.cpu().numpy()
+                np_img_arr = np.reshape(np_img_arr, (self.height, self.width, 4))
+                print("np_img_arr.shape=",np_img_arr.shape)
                 np_img_arr = np.flipud(np_img_arr)
                 self.matplot_image.set_data(np_img_arr)
+              else:
+                if self.show_data == DEPTH_DATA:
+                  np_depth_arr = np.flipud(np.reshape(pixels.depth, (height, width, 1)))
+                  self.matplot_image.set_data(np_depth_arr)
+                else:
+                  np_img_arr = np.reshape(pixels.rgba, (height, width, 4))
+                  if self.show_data==RGB_DATA:
+                    np_img_arr = np_img_arr * (1. / 255.)
+                  np_img_arr = np.flipud(np_img_arr)
+                  self.matplot_image.set_data(np_img_arr)
+              
+              
+              self.plt.pause(0.0001)
+              
+            self.viz.swap_buffer()
             
-            plt.pause(0.0001)
-            
-          self.viz.swap_buffer()
-          
-        ###################################
-
-
-
-
-
+        
+        if 1:
+          width = self.viz.opengl_app.renderer.get_screen_width()
+          #print("screen_width=",width)
+          height = self.viz.opengl_app.renderer.get_screen_height()
+          #print("screen_height=",height)
+              
+          tile_width = int(width/self.max_x)
+          tile_height = int(height/self.max_x)
+          ttensor = self.ttensor.type(torch.float32)*255.
+          ttensor  = torch.reshape(ttensor, (self.height, self.width, 4))
+          #ttensor = torch.flipud(ttensor)
+          ttensor = ttensor.reshape(self.max_x, tile_width, self.max_x, tile_height, 4)
+          ttensor = ttensor.swapaxes(1,2)
+          ttensor = ttensor.reshape(self.max_x*self.max_x, tile_width*tile_height*4)
+          ttensor = ttensor[:self.num_envs,]
+         
+          #self.ttensor  = torch.reshape(self.ttensor, (self.height, self.width, 4))
+          #self.ttensor = self.ttensor[:self.num_envs,]
+          #print("ttensor.shape=", ttensor.shape)
+        
         self.obs_buf = torch.cat((  self.base_lin_vel * self.obs_scales.lin_vel,
                                     self.base_ang_vel  * self.obs_scales.ang_vel,
                                     self.projected_gravity,
@@ -402,6 +465,8 @@ class A1(LeggedRobot):
                                     (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
                                     self.dof_vel * self.obs_scales.dof_vel,
                                     self.actions
+                                    #,
+                                    #ttensor
                                     ),dim=-1)
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:

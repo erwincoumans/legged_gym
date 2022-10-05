@@ -37,7 +37,7 @@ import torch
 # Base class for RL tasks
 class BaseTask():
 
-    def __init__(self, cfg, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg, sim_params, physics_engine, sim_device, headless, matplotlib):
         self.gym = gymapi.acquire_gym()
 
         self.sim_params = sim_params
@@ -45,6 +45,7 @@ class BaseTask():
         self.sim_device = sim_device
         sim_device_type, self.sim_device_id = gymutil.parse_device_str(self.sim_device)
         self.headless = headless
+        self.matplotlib = matplotlib
 
         # env device is GPU only if sim is on GPU and use_gpu_pipeline=True, otherwise returned tensors are copied to CPU by physX.
         if sim_device_type=='cuda' and sim_params.use_gpu_pipeline:
