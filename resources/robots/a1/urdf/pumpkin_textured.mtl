@@ -1,0 +1,24 @@
+# Blender 3.2.2 MTL File: 'BestShadedPumpkin_textured.blend'
+# www.blender.org
+
+newmtl Material.body
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.286796 0.049317
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd pumpkin_orange.png
+
+newmtl Material.stem
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.094845 0.165284 0.013075
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd pumpkin_orange.png
