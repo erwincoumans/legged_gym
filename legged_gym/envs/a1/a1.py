@@ -183,7 +183,7 @@ class A1(LeggedRobot):
           #print("all_instances=",all_instances)
           #print("all_instances[0]=",all_instances[0])
       
-          for i in self.all_instances[1]:
+          for i in self.all_instances[0]:
             print(i.visual_instance)
             
           #sync transforms
@@ -359,20 +359,28 @@ class A1(LeggedRobot):
             ct = time.time()
             
             if use_tiled:
+                cam_local_pose = g.TinyPosef(g.TinyVector3f(0.28,0,0.03), g.TinyQuaternionf(0.,0.,0.,1.))
                 for tile_index in range (self.num_envs):
                     tile = self.tiles[tile_index]
                     
-                    # update the camera transform (an OpenGL 4x4 matrix)
-                    #cam = g.TinyCamera()
-                    #cam.set_camera_up_axis(2)
-                    #cam.set_camera_distance(1.5)
-                    #cam.set_camera_pitch(-30)
-                    #cam.set_camera_yaw(0)
+                    # update the camera view matrix (an OpenGL 4x4 matrix)
+                    torso_world_pos = g.TinyVector3f(visual_world_transforms[tile_index][0],visual_world_transforms[tile_index][1],visual_world_transforms[tile_index][2])
+                    torso_world_orn = g.TinyQuaternionf(visual_world_transforms[tile_index][3],visual_world_transforms[tile_index][4],visual_world_transforms[tile_index][5],visual_world_transforms[tile_index][6])
+                    torso_pose = g.TinyPosef(torso_world_pos,torso_world_orn)
+                    cam_world_pose = torso_pose * cam_local_pose
                     
-                    cam.set_camera_target_position(visual_world_transforms[tile_index][0],visual_world_transforms[tile_index][1],visual_world_transforms[tile_index][2])
-                    #cam.set_camera_target_orientation(visual_world_transforms[tile_index][3],visual_world_transforms[tile_index][4],visual_world_transforms[tile_index][5],visual_world_transforms[tile_index][6])
+                    mat = g.TinyMatrix3x3f(cam_world_pose.orientation)
                     
-                    tile.view_matrix = cam.get_camera_view_matrix()
+                    cam_pos = cam_world_pose.position
+                    cam_distance=1.5
+                    cam_forward = mat.get_column(0)
+                    cam_up = mat.get_column(2)
+                    #print("cam_up=",cam_up)
+                    cam_target = cam_pos + cam_forward * cam_distance
+                    #print("cam_target=",cam_target)
+                    view_mat = g.compute_camera_view_matrix(cam_pos, cam_target, cam_up)
+                    tile.view_matrix = view_mat#cam.get_camera_view_matrix()
+                    
                     tile.viewport_dims=[x*tile_width,y*tile_height,tile_width, tile_height]
                     x+=1
                     if x>=self.max_x:
