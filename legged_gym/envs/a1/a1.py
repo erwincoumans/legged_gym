@@ -38,7 +38,7 @@ numpy.set_printoptions(threshold=sys.maxsize)
 
 
 import os
-
+import nvtx
 from isaacgym.torch_utils import *
 from isaacgym import gymtorch, gymapi, gymutil
 
@@ -257,8 +257,8 @@ class A1(LeggedRobot):
                 viz_instances = []
                 
                 # add the robot specific to this 'tile' to its 'viz_instances'
-                for pair in pairs:
-                  viz_instances.append(pair.visual_instance)
+                #for pair in pairs:
+                #  viz_instances.append(pair.visual_instance)
                 
                 #add the single ground plane to each tile
                 viz_instances.append(plane_visual_instance)
@@ -289,6 +289,7 @@ class A1(LeggedRobot):
         
         
   
+    @nvtx.annotate("compute_observations", color="blue")
     def compute_observations(self):
         """ Computes observations
         """
@@ -329,7 +330,7 @@ class A1(LeggedRobot):
             
             ct = time.time()
             # Synchronize the renderer world transforms for all environments
-            self.viz.sync_visual_transforms(self.all_instances, visual_world_transforms, 0, sim_spacing, apply_visual_offset=True)
+            #self.viz.sync_visual_transforms(self.all_instances, visual_world_transforms, 0, sim_spacing, apply_visual_offset=True)
   
             et = time.time()
             #print("sync_visual_transforms dt=",et-ct)
@@ -359,8 +360,9 @@ class A1(LeggedRobot):
             ct = time.time()
             
             if use_tiled:
-                cam_local_pose = g.TinyPosef(g.TinyVector3f(0.28,0,0.03), g.TinyQuaternionf(0.,0.,0.,1.))
-                for tile_index in range (self.num_envs):
+                with nvtx.annotate("tiled_cam_update", color="green"):
+                  cam_local_pose = g.TinyPosef(g.TinyVector3f(0.28,0,0.03), g.TinyQuaternionf(0.,0.,0.,1.))
+                  for tile_index in range (self.num_envs):
                     tile = self.tiles[tile_index]
                     
                     # update the camera view matrix (an OpenGL 4x4 matrix)
@@ -394,7 +396,8 @@ class A1(LeggedRobot):
             ct = time.time()
                       
             if use_tiled:
-                self.viz.render_tiled(self.tiles, do_swap_buffer = False, render_segmentation_mask=(self.show_data==SEGMENTATION_DATA))
+                with nvtx.annotate("render_tiled", color="yellow"):
+                  self.viz.render_tiled(self.tiles, do_swap_buffer = False, render_segmentation_mask=(self.show_data==SEGMENTATION_DATA))
             else:
               self.viz.render(do_swap_buffer=False, render_segmentation_mask=(self.show_data==SEGMENTATION_DATA))  
   
