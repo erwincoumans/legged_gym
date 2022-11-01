@@ -56,21 +56,31 @@ class Terrain:
         self.border = int(cfg.border_size/self.cfg.horizontal_scale)
         self.tot_cols = int(cfg.num_cols * self.width_per_env_pixels) + 2 * self.border
         self.tot_rows = int(cfg.num_rows * self.length_per_env_pixels) + 2 * self.border
-
+        
         self.height_field_raw = np.zeros((self.tot_rows , self.tot_cols), dtype=np.int16)
         if cfg.curriculum:
+            print("terrain curriculum")
             self.curiculum()
         elif cfg.selected:
+            print("selected_terrain")
             self.selected_terrain()
         else:    
+            print("randomized_terrain")
             self.randomized_terrain()   
         
         self.heightsamples = self.height_field_raw
         if self.type=="trimesh":
+            #print("self.height_field_raw=",self.height_field_raw)
+            print("self.cfg.horizontal_scale=",self.cfg.horizontal_scale)
+            print("self.cfg.vertical_scale=",self.cfg.vertical_scale)            
+            print("self.cfg.slope_treshold=",self.cfg.slope_treshold)
             self.vertices, self.triangles = terrain_utils.convert_heightfield_to_trimesh(   self.height_field_raw,
                                                                                             self.cfg.horizontal_scale,
                                                                                             self.cfg.vertical_scale,
                                                                                             self.cfg.slope_treshold)
+            #breakpoint()
+            print("len(self.vertices)=",len(self.vertices))
+            print("len(self.triangles)=",len(self.triangles))
     
     def randomized_terrain(self):
         for k in range(self.cfg.num_sub_terrains):
@@ -83,12 +93,38 @@ class Terrain:
             self.add_terrain_to_map(terrain, i, j)
         
     def curiculum(self):
+        print("self.cfg.num_cols)=",self.cfg.num_cols)
+        print("self.cfg.num_rows",self.cfg.num_rows)
         for j in range(self.cfg.num_cols):
             for i in range(self.cfg.num_rows):
                 difficulty = i / self.cfg.num_rows
                 choice = j / self.cfg.num_cols + 0.001
 
                 terrain = self.make_terrain(choice, difficulty)
+                verts, tris = terrain_utils.convert_heightfield_to_trimesh(   terrain.height_field_raw,
+                                                                                            self.cfg.horizontal_scale,
+                                                                                            self.cfg.vertical_scale,
+                                                                                            self.cfg.slope_treshold)
+              
+                                                                                            
+                #breakpoint()
+                
+        
+                terrain_file_name = "terrain_c"+str(j)+"+r"+str(i)+".obj"
+                print("writing: ", terrain_file_name)
+                f = open(terrain_file_name, "w")
+                for vertex in verts:
+                  f.write("v %f %f %f\n"%(vertex[0], vertex[1], vertex[2]))
+    
+                for face in tris:
+                  f.write("f %d %d %d\n"%(face[0]+1, face[1]+1, face[2]+1))
+                '''for i in range(1000):
+                  f.write("v %f %f %f\n"%(self.terrain.vertices[i][0], self.terrain.vertices[i][1], self.terrain.vertices[i][2]))
+    
+                for face in self.terrain.triangles:
+                  if face[0] < 1000 and face[1] < 1000 and face[2] < 1000:
+                    f.write("f %d %d %d\n"%(face[0]+1, face[1]+1, face[2]+1))'''
+                f.close()
                 self.add_terrain_to_map(terrain, i, j)
 
     def selected_terrain(self):
@@ -107,6 +143,7 @@ class Terrain:
             self.add_terrain_to_map(terrain, i, j)
     
     def make_terrain(self, choice, difficulty):
+        print("make_terrain, choice=",choice," and difficulty=", difficulty)
         terrain = terrain_utils.SubTerrain(   "terrain",
                                 width=self.width_per_env_pixels,
                                 length=self.width_per_env_pixels,
