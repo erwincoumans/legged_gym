@@ -69,8 +69,8 @@ class A1(LeggedRobot):
       ############################
         #use pip install pytinydiffsim to get pytinyopengl3
         
-        self._camera_width = 120
-        self._camera_height = 80
+        self._camera_width = 30
+        self._camera_height = 20
         
         
         
@@ -198,44 +198,68 @@ class A1(LeggedRobot):
           
           st = time.time()
           
-          #######################
-          # create plane_visual_instance, a textured box plane
+          if self.cfg.terrain.mesh_type == "plane":
+            #######################
+            # create plane_visual_instance, a textured box plane
+            # create a texture
+            width = 256
+            height = 256
+            pixels = [255] * width * height * 3
+            colorR = 255
+            colorG = 255
+            colorB = 255
+	  
+            for i in range(width):
+              for j in range(height):
+                 a = i < width / 2
+                 b = j < width / 2
+                 if (a == b):
+                   pixels[(i + j * width) * 3 + 0] = 0
+                   pixels[(i + j * width) * 3 + 1] = 255
+                   pixels[(i + j * width) * 3 + 2] = 255
+                 else:
+                   pixels[(i + j * width) * 3 + 0] = colorR
+                   pixels[(i + j * width) * 3 + 1] = colorG
+                   pixels[(i + j * width) * 3 + 2] = colorB
+	  
+	  
+            textureIndex = self.viz.opengl_app.renderer.register_texture(pixels, width, height, False)
+            shape = self.viz.opengl_app.register_cube_shape(128, 128, 0.01, textureIndex, 4000)
+            print("shape=",shape)
+            pos = g.TinyVector3f(0.,0.,0.)
+            orn = g.TinyQuaternionf(0.,0.,0.,1.)
+            color = g.TinyVector3f(1.,1.,1.)
+            scaling = g.TinyVector3f(1.,1.,1.)
+            opacity = 1
+            rebuild = True
+            terrain_visual_instance = self.viz.opengl_app.renderer.register_graphics_instance(shape, pos, orn, color, scaling, opacity, rebuild)
+            #######################
+          else:
+            f = open(asset_root + "/terrain.obj", "w")
+            for vertex in self.terrain.vertices:
+              f.write("v %f %f %f\n"%(vertex[0], vertex[1], vertex[2]))
 
-          # create a texture
-          width = 256
-          height = 256
-          pixels = [255] * width * height * 3
-          colorR = 255
-          colorG = 255
-          colorB = 255
-          
-          for i in range(width):
-            for j in range(height):
-               a = i < width / 2
-               b = j < width / 2
-               if (a == b):
-                  pixels[(i + j * width) * 3 + 0] = 0
-                  pixels[(i + j * width) * 3 + 1] = 255
-                  pixels[(i + j * width) * 3 + 2] = 255
-               else:
-                pixels[(i + j * width) * 3 + 0] = colorR
-                pixels[(i + j * width) * 3 + 1] = colorG
-                pixels[(i + j * width) * 3 + 2] = colorB
-          
-          
-          textureIndex = self.viz.opengl_app.renderer.register_texture(pixels, width, height, False)
-          shape = self.viz.opengl_app.register_cube_shape(128, 128, 0.01, textureIndex, 4000)
-          print("shape=",shape)
-          pos = g.TinyVector3f(0.,0.,0.)
-          orn = g.TinyQuaternionf(0.,0.,0.,1.)
-          color = g.TinyVector3f(1.,1.,1.)
-          scaling = g.TinyVector3f(1.,1.,1.)
-          opacity = 1
-          rebuild = True
-          plane_visual_instance = self.viz.opengl_app.renderer.register_graphics_instance(shape, pos, orn, color, scaling, opacity, rebuild)
-          
-          
-          #######################
+            for face in self.terrain.triangles:
+              f.write("f %d %d %d\n"%(face[0]+1, face[1]+1, face[2]+1))
+            '''for i in range(1000):
+              f.write("v %f %f %f\n"%(self.terrain.vertices[i][0], self.terrain.vertices[i][1], self.terrain.vertices[i][2]))
+
+            for face in self.terrain.triangles:
+              if face[0] < 1000 and face[1] < 1000 and face[2] < 1000:
+                f.write("f %d %d %d\n"%(face[0]+1, face[1]+1, face[2]+1))'''
+            f.close()
+
+            
+            pos = g.TinyVector3f(-self.terrain.cfg.border_size,-self.terrain.cfg.border_size,0.)
+            orn = g.TinyQuaternionf(0.,0.,0.,1.)
+            color = g.TinyVector3f(0.5,0.5,0.5)
+            scaling = g.TinyVector3f(1.,1.,1.)
+            opacity = 1
+            rebuild = True
+            shapes = g.load_obj_shapes(self.viz.opengl_app, asset_root+"/terrain.obj", pos, orn, scaling)
+            shape = shapes[0]
+            terrain_visual_instance = self.viz.opengl_app.renderer.register_graphics_instance(shape, pos, orn, color, scaling, opacity, rebuild)
+
           
           
           if 1:
@@ -261,7 +285,7 @@ class A1(LeggedRobot):
                   viz_instances.append(pair.visual_instance)
                 
                 #add the single ground plane to each tile
-                viz_instances.append(plane_visual_instance)
+                viz_instances.append(terrain_visual_instance)
                 
                 #print("viz_instances=",viz_instances)
                 tile.visual_instances = viz_instances#[t, 512+t, 1024+t]
@@ -292,7 +316,6 @@ class A1(LeggedRobot):
     def compute_observations(self):
         """ Computes observations
         """
-        
         if self.device != 'cpu':
           self.gym.fetch_results(self.sim, True)
         self.gym.step_graphics(self.sim)
@@ -329,6 +352,7 @@ class A1(LeggedRobot):
             
             ct = time.time()
             # Synchronize the renderer world transforms for all environments
+
             self.viz.sync_visual_transforms(self.all_instances, visual_world_transforms, 0, sim_spacing, apply_visual_offset=True)
   
             et = time.time()
@@ -359,7 +383,7 @@ class A1(LeggedRobot):
             ct = time.time()
             
             if use_tiled:
-                cam_local_pose = g.TinyPosef(g.TinyVector3f(0.28,0,0.03), g.TinyQuaternionf(0.,0.,0.,1.))
+                cam_local_pose = g.TinyPosef(g.TinyVector3f(0.28,0,0.03), g.TinyQuaternionf(0, 0.3894183, 0, 0.921061))
                 for tile_index in range (self.num_envs):
                     tile = self.tiles[tile_index]
                     
@@ -378,6 +402,7 @@ class A1(LeggedRobot):
                     #print("cam_up=",cam_up)
                     cam_target = cam_pos + cam_forward * cam_distance
                     #print("cam_target=",cam_target)
+                    
                     view_mat = g.compute_camera_view_matrix(cam_pos, cam_target, cam_up)
                     tile.view_matrix = view_mat#cam.get_camera_view_matrix()
                     
@@ -440,7 +465,6 @@ class A1(LeggedRobot):
                   np_img_arr = np.flipud(np_img_arr)
                   self.matplot_image.set_data(np_img_arr)
               
-              
               self.plt.pause(0.0001)
               
             self.viz.swap_buffer()
@@ -451,21 +475,24 @@ class A1(LeggedRobot):
           #print("screen_width=",width)
           height = self.viz.opengl_app.renderer.get_screen_height()
           #print("screen_height=",height)
-              
           tile_width = int(width/self.max_x)
           tile_height = int(height/self.max_x)
-          ttensor = self.ttensor.type(torch.float32)*255.
+          ttensor = self.ttensor.type(torch.float32)
           ttensor  = torch.reshape(ttensor, (self.height, self.width, 4))
+
+          # take green channel only
+          ttensor = ttensor[:, :, 1]
+
           #ttensor = torch.flipud(ttensor)
-          ttensor = ttensor.reshape(self.max_x, tile_width, self.max_x, tile_height, 4)
+          ttensor = ttensor.reshape(self.max_x, tile_width, self.max_x, tile_height, 1)
           ttensor = ttensor.swapaxes(1,2)
-          ttensor = ttensor.reshape(self.max_x*self.max_x, tile_width*tile_height*4)
+          ttensor = ttensor.reshape(self.max_x*self.max_x, tile_width*tile_height*1)
           ttensor = ttensor[:self.num_envs,]
-         
+           
           #self.ttensor  = torch.reshape(self.ttensor, (self.height, self.width, 4))
           #self.ttensor = self.ttensor[:self.num_envs,]
           #print("ttensor.shape=", ttensor.shape)
-        
+
         self.obs_buf = torch.cat((  self.base_lin_vel * self.obs_scales.lin_vel,
                                     self.base_ang_vel  * self.obs_scales.ang_vel,
                                     self.projected_gravity,
@@ -473,8 +500,8 @@ class A1(LeggedRobot):
                                     (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
                                     self.dof_vel * self.obs_scales.dof_vel,
                                     self.actions
-                                    #,
-                                    #ttensor
+                                    ,
+                                    ttensor * 0.2
                                     ),dim=-1)
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:

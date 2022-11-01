@@ -71,6 +71,9 @@ class Terrain:
                                                                                             self.cfg.horizontal_scale,
                                                                                             self.cfg.vertical_scale,
                                                                                             self.cfg.slope_treshold)
+            print("len(self.vertices)=",len(self.vertices))
+            print("len(self.triangles)=",len(self.triangles))
+            
     
     def randomized_terrain(self):
         for k in range(self.cfg.num_sub_terrains):

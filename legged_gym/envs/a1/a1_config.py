@@ -95,7 +95,7 @@ class A1FlatCfgPPO( LeggedRobotCfgPPO ):
  
 class A1FlatCfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
-        pos = [0.0, 0.0, 0.42] # x,y,z [m]
+        pos = [0.0, 0.0, 0.3] # x,y,z [m]
         default_joint_angles = { # = target angles [rad] when action = 0.0
             'FL_hip_joint': 0.1,   # [rad]
             'RL_hip_joint': 0.1,   # [rad]
@@ -115,16 +115,17 @@ class A1FlatCfg( LeggedRobotCfg ):
 
 
     class env( LeggedRobotCfg.env ):
-      num_observations = 48#+38400
+      num_observations = 48 + 600#+38400
 
     class terrain( LeggedRobotCfg.terrain ):
-        mesh_type = 'plane'
+        mesh_type = 'trimesh'
         measure_heights = False
+        terrain_proportions = [0.1, 0.0, 0.35, 0.25, 0.3]
         
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters:
         control_type = 'P'
-        stiffness = {'joint': 20.}  # [N*m/rad]
+        stiffness = {'joint': 30.}  # [N*m/rad]
         damping = {'joint': 0.5}     # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25
